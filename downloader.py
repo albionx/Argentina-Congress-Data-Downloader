@@ -1,9 +1,25 @@
 #!/usr/bin/env python
-""" Downloads the data from el Congreso Nacional de Argentina """
+
+"""
+Author: Santiago Andrigo <albionx@gmail.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 import json
 import sqlite3
 import urllib.request
+from time import sleep
 
 def runDataImporter(resourcePathCursor):
     queryTally = int()
@@ -25,19 +41,30 @@ def runDataImporter(resourcePathCursor):
 
         queryInsertions = writeToDB(resourceData)
 
-        # Establish progress
-        print ('Found {} results in this page: inserted {} records and skipped {}.'.format(queryResults, queryInsertions, queryResults - queryInsertions))
-        print ('We are {}% of the way there'.format(round((queryTally / queryTotal) * 100)))
-        print ('=' * 30)
+        # Establish progress in an unnecessarily visual way
+        progress = (queryTally / queryTotal)
+        print('Downloading {} data: {}{} {}% ({}/{}) \r'.format(
+            SOURCE_NAME,
+            "█" * round(progress * 20),
+            "░" * (20 - round(progress * 20)),
+            round(progress * 100),
+            queryTally,
+            queryTotal
+            ), end="")
+        #print ('Found {} results in this page: inserted {} records and skipped {}.'.format(queryResults, queryInsertions, queryResults - queryInsertions))
+        #print ('We are {}% of the way there'.format(round((queryTally / queryTotal) * 100)))
+        #print ('=' * 30)
+
+        # Exit if we've reached 100% already
+        if queryTally == queryTotal: 
+            print ('\nSUCCESS! Data saved in the \'{}\' table, in the \'{}\' file.'.format(SOURCE_NAME, DATABASE_NAME))
+            break
 
         # Look for the next results
         if queryResults > 0: # there is potentially more to be obtained
             resourcePathCursor = resourceData['result']['_links']['next']
             resourceUrl = '{}{}'.format(BASE_URL, resourcePathCursor)
             resourceData = getJsonContents(resourceUrl)
-        else:
-            print('Done here!')
-            break
 
 def writeToDB(resourceData):
 
@@ -75,7 +102,7 @@ def writeToDB(resourceData):
         conditions = buildQueryCondition(record, fieldTypes)
 
         # See if the record is present, and if so, skip
-        # TODO: find out how to make detect changes and do updates. Maybe if the primary key is the same but the contents change?
+        # TODO: Allow for records to be updated, by checking only for an ID and then verifying if the contents are different before doing an update
         select_sql = 'SELECT ROWID FROM {} WHERE {}'.format(SOURCE_NAME, conditions)
         try:
             cursor.execute(select_sql)
@@ -94,7 +121,7 @@ def writeToDB(resourceData):
 def getJsonContents(url):
     data = None
     try:
-        print ('Retrieving: ', url)
+        sleep(DELAY_IN_SECONDS)
         urlHandler = urllib.request.urlopen(url)
         urlContents = urlHandler.read().decode()
         response_code = urlHandler.getcode()
@@ -128,36 +155,39 @@ def buildQueryCondition(record, fieldTypes):
 
 if __name__ == '__main__':
 
-    DATABASE_NAME = 'congreso.sqlite'
+    DATABASE_NAME = 'congressData.sqlite'
     BASE_URL = 'https://datos.hcdn.gob.ar:443'
+    DELAY_IN_SECONDS = 0 
 
-    decision = input(
-"""What dataset do you want to download:\n
-1. Subsidios
-2. Leyes
-3. Sesiones
-4. Diputados
-""")
-    
-    if decision.lower() == '1':
-        SOURCE_NAME = 'Subsidios'
-        resourcePathCursor = '/api/3/action/datastore_search?resource_id=2cdaef71-f802-4067-bfa0-810dd3a22583'
-    elif decision.lower() == '2':
-        SOURCE_NAME = 'Leyes'
-        resourcePathCursor = '/api/3/action/datastore_search?resource_id=a88b42c3-d375-4072-8542-92b11db1d711'
-    elif decision.lower() == '3':
-        SOURCE_NAME = 'Sesiones'
-        resourcePathCursor = '/api/3/action/datastore_search?resource_id=4ac70a51-a82d-428b-966a-0a203dd0a7e3'
-    elif decision.lower() == '4':
-        SOURCE_NAME = 'Diputados'
-        resourcePathCursor = '/api/3/action/datastore_search?resource_id=16cd699d-83fb-4d5f-afd4-0af9b47b1bd7'
-    else:
-        quit()
-    
     try:
+
+        decision = input(
+        """
+Which dataset do you want to download:
+
+    1. COVID19 Subsidies
+    2. Laws
+    3. House of Representatives Sessions (Diputados)
+    4. List of Representatives (Diputados)
+    5. Quit
+
+""")
+        if decision.lower() == '1':
+            SOURCE_NAME = 'Subsidies'
+            resourcePathCursor = '/api/3/action/datastore_search?resource_id=2cdaef71-f802-4067-bfa0-810dd3a22583'
+        elif decision.lower() == '2':
+            SOURCE_NAME = 'Laws'
+            resourcePathCursor = '/api/3/action/datastore_search?resource_id=a88b42c3-d375-4072-8542-92b11db1d711'
+        elif decision.lower() == '3':
+            SOURCE_NAME = 'Sessions'
+            resourcePathCursor = '/api/3/action/datastore_search?resource_id=4ac70a51-a82d-428b-966a-0a203dd0a7e3'
+        elif decision.lower() == '4':
+            SOURCE_NAME = 'Representatives'
+            resourcePathCursor = '/api/3/action/datastore_search?resource_id=16cd699d-83fb-4d5f-afd4-0af9b47b1bd7'
+        elif decision.lower() == '5' or decision.lower() == '':
+            quit()
+
         runDataImporter(resourcePathCursor)
+
     except KeyboardInterrupt:
-        print ('User quit with an interrupt')
-        quit()
-    except:
-        print ('Some uncaught happened...')
+        print ('\nUser quit with an interrupt')
