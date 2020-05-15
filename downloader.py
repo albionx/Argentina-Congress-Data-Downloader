@@ -21,7 +21,9 @@ import sqlite3
 import urllib.request
 from time import sleep
 
-def runDataImporter(resourcePathCursor):
+def runDataImporter():
+    global resourcePathCursor # needed because I'm reassigning this variable in this function.
+
     queryTally = int()
 
     # This path provides initial access, the API will give a cursor to the next results
@@ -187,7 +189,7 @@ Which dataset do you want to download:
         elif decision.lower() == '5' or decision.lower() == '':
             quit()
 
-        runDataImporter(resourcePathCursor)
+        runDataImporter()
 
     except KeyboardInterrupt:
         print ('\nUser quit with an interrupt')
