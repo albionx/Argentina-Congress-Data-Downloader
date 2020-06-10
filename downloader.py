@@ -24,10 +24,11 @@ from time import sleep
 def runDataImporter(resourcePathCursor):
 
     MoreData = True
+    queryTally = int()
 
     while MoreData:
-         # This path provides initial access, the API will give a cursor to the next results
-        resourceUrl = '{base_url}{path}'.format(base_url=BASE_URL, path=resourcePathCursor)
+        # This path provides initial access, the API will give a cursor to the next results
+        resourceUrl = '{0}{1}'.format(BASE_URL, resourcePathCursor)
         resourceData = getJsonContents(resourceUrl)
 
         # Catch failures on their backend
@@ -36,20 +37,18 @@ def runDataImporter(resourcePathCursor):
             break
 
         # Count total number of records in dataset and in this particular resultset
-        queryTally = int()
         queryResults = len(resourceData['result']['records'])
         queryTotal = resourceData['result']['total']
         queryTally += queryResults
-
         queryInsertions = writeToDB(resourceData)
 
         # Establish progress in an unnecessarily visual way
-        print('Downloading {table} data: {progress}{remnant} {percentage}% ({sofar}/{total}) \r'.format(
+        print('Downloading {table} data: {progress}{remnant} {percentage}% ({tally}/{total}) \r'.format(
             table=SOURCE_NAME,
             progress="█" * round((queryTally / queryTotal) * 20),
             remnant="░" * (20 - round((queryTally / queryTotal) * 20)),
             percentage=round((queryTally / queryTotal) * 100),
-            sofar=queryTally,
+            tally=queryTally,
             total=queryTotal
             ), end="")
 
@@ -58,7 +57,7 @@ def runDataImporter(resourcePathCursor):
 
         # Exit if we've reached 100% already
         if queryTally == queryTotal: 
-            print ("\nSUCCESS! Data saved in the '{table}' table, in the '{file}' file.".format(table=SOURCE_NAME, file=DATABASE_NAME))
+            print ("\nSUCCESS! Data saved in the '{0}' table, in the '{1}' file.".format(SOURCE_NAME, DATABASE_NAME))
             MoreData = False
 
 def writeToDB(resourceData):
@@ -68,7 +67,7 @@ def writeToDB(resourceData):
     fieldTypes = dict() # this dictionary stores each field and the type, which we'll use when doing the WHERE clause
 
     for field in resourceData['result']['fields']:
-        fullSchema = '{fullSchema}, {id} {type}'.format(fullSchema=fullSchema, id=field['id'], type=field['type'])
+        fullSchema = '{0}, {1} {2}'.format(fullSchema, field['id'], field['type'])
         fieldTypes[field['id']] = field['type']
 
     fullSchema = fullSchema[1:]
@@ -76,8 +75,7 @@ def writeToDB(resourceData):
      # Create table with the fullSchema collected before
     database = sqlite3.connect(DATABASE_NAME)
     cursor = database.cursor()
-    sql = 'CREATE TABLE IF NOT EXISTS {table} ({schema})'.format(table=SOURCE_NAME, schema=fullSchema)
-    cursor.execute(sql)
+    cursor.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(SOURCE_NAME, fullSchema))
 
     # Loop through records to insert into the database. Keep track of additions.
     queryInsertions = int()
@@ -86,28 +84,19 @@ def writeToDB(resourceData):
 
         # helper values
         fields = (str(list(record.keys()))[1:-1])
-
-        # build the equivalent to 'fields' but changing the None values for "", so that i can use it in the SELECT query
-        values = list()
-        for value in record.values():
-            if value is None: 
-                values.append("")
-            else:
-                values.append(value)
-        values = str(values)[1:-1]
         conditions = buildQueryCondition(record, fieldTypes)
 
         # See if the record is present, and if so, skip
         # TODO: Allow for records to be updated, by checking only for an ID and then verifying if the contents are different before doing an update
-        select_sql = 'SELECT ROWID FROM {table} WHERE {conditions}'.format(table=SOURCE_NAME, conditions=conditions)
+        select_sql = 'SELECT ROWID FROM {0} WHERE {1}'.format(SOURCE_NAME, conditions)
+
         try:
             cursor.execute(select_sql)
         except:
-            print ('Problem running query:', sql)
+            print ('Problem running query:', select_sql)
 
         if cursor.fetchone() is None:
-            insert_sql = 'INSERT INTO {table} ({fields}) VALUES ({values})'.format(table=SOURCE_NAME, fields=fields, values=values)
-            cursor.execute(insert_sql)
+            cursor.execute('INSERT INTO {0} ({1}) VALUES (?)'.format(SOURCE_NAME, fields), record.values())
             queryInsertions += 1
 
     database.commit()
@@ -124,24 +113,24 @@ def getJsonContents(url):
         if response_code == 200:
             data = json.loads(urlContents)
         else:
-            print('Error retrieving contents from URL {url}'.format(url=url))
+            print('Error retrieving contents from URL {0}'.format(url))
     except Exception as ex:
-        print ('Problem obtaining or parsing the data from: {url} - Error {ex}'.format(url=url, ex=ex))
+        print ('Problem obtaining or parsing the data from: {0} - Error {1}'.format(url, ex))
     return data
 
 def buildQueryCondition(record, fieldTypes):
     conditions = str()
     try:
         for fieldName in record.keys():
-            # Deal with None values by using "". In text fields this becomes a "" filed. In numeric fields it becomes NULL.
+            # Deal with None values by using "". In text fields this becomes a "" field. In numeric fields it becomes NULL.
             if record[fieldName] == None: 
-                conditions = '{conditions} AND {field} = ""'.format(conditions=conditions, field=fieldName)
+                conditions = '{0} AND {1} = ""'.format(conditions, fieldName)
                 continue
             # Deal with formatting and SQL injection protection.
             if fieldTypes[fieldName].lower() == 'text' or fieldTypes[fieldName].lower() == 'timestamp':
-                conditions = '{conditions} AND {field} = "{value}"'.format(conditions=conditions, field=fieldName, value=record[fieldName].replace('\"','\''))
+                conditions = '{0} AND {1} = "{2}"'.format(conditions, fieldName, record[fieldName].replace('\"','\''))
             else:
-                conditions = '{conditions} AND {field} = {value}'.format(conditions=conditions, field=fieldName, value=str(record[fieldName]).replace(' ',''))
+                conditions = '{0} AND {1} = {2}'.format(conditions, fieldName, str(record[fieldName]).replace(' ',''))
         return conditions[5:]
     except:
         print (record)
