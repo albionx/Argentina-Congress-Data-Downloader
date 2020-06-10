@@ -73,33 +73,33 @@ def writeToDB(resourceData):
     fullSchema = fullSchema[1:]
 
      # Create table with the fullSchema collected before
-    database = sqlite3.connect(DATABASE_NAME)
-    cursor = database.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(SOURCE_NAME, fullSchema))
+    with sqlite3.connect(DATABASE_NAME) as database:
+        cursor = database.cursor()
+        cursor.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(SOURCE_NAME, fullSchema))
 
-    # Loop through records to insert into the database. Keep track of additions.
-    queryInsertions = int()
+        # Loop through records to insert into the database. Keep track of additions.
+        queryInsertions = int()
 
-    for record in resourceData['result']['records']:
+        for record in resourceData['result']['records']:
 
-        # helper values
-        fields = (str(list(record.keys()))[1:-1])
-        conditions = buildQueryCondition(record, fieldTypes)
+            # helper values
+            fields = (str(list(record.keys()))[1:-1])
+            conditions = buildQueryCondition(record, fieldTypes)
 
-        # See if the record is present, and if so, skip
-        # TODO: Allow for records to be updated, by checking only for an ID and then verifying if the contents are different before doing an update
-        select_sql = 'SELECT ROWID FROM {0} WHERE {1}'.format(SOURCE_NAME, conditions)
+            # See if the record is present, and if so, skip
+            # TODO: Allow for records to be updated, by checking only for an ID and then verifying if the contents are different before doing an update
+            select_sql = 'SELECT ROWID FROM {0} WHERE {1}'.format(SOURCE_NAME, conditions)
 
-        try:
-            cursor.execute(select_sql)
-        except:
-            print ('Problem running query:', select_sql)
+            try:
+                cursor.execute(select_sql)
+            except:
+                print ('Problem running query:', select_sql)
 
-        if cursor.fetchone() is None:
-            cursor.execute('INSERT INTO {0} ({1}) VALUES (?)'.format(SOURCE_NAME, fields), record.values())
-            queryInsertions += 1
+            if cursor.fetchone() is None:
+                cursor.execute('INSERT INTO {0} ({1}) VALUES (?)'.format(SOURCE_NAME, fields), record.values())
+                queryInsertions += 1
 
-    database.commit()
+        database.commit()
 
     return queryInsertions
 
