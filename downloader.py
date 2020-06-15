@@ -20,6 +20,11 @@ import json
 import sqlite3
 import urllib.request
 from time import sleep
+try:
+    from PyInquirer import style_from_dict, Token, prompt
+except ImportError:
+    print ('PyInquirer missing. To install, please run: pip install PyInquirer')
+    quit()
 
 def runDataImporter(resourcePathCursor):
 
@@ -138,6 +143,47 @@ def buildQueryCondition(record, fieldTypes):
         print ((str(list(record.values()))[1:-1]))
         quit()
 
+def obtainDecision():
+
+    style = style_from_dict({
+        Token.Separator: '#6C6C6C',
+        Token.QuestionMark: '#FF9D00 bold',
+        Token.Selected: '#5F819D',
+        Token.Pointer: '#FF9D00 bold',
+        Token.Answer: '#5F819D bold',
+    })
+
+    dataset_question = [
+        {
+        'type': 'checkbox', 
+        'name': 'chosen',
+        'message': 'Select all datasets you want to download:',
+        'choices': [
+            {'name': 'COVID19 Subsidies'},
+            {'name': 'Laws'},
+            {'name': 'House of Representatives Sessions (Diputados)'},
+            {'name': 'List of Representatives (Diputados)'}
+            ]
+        }
+        ]
+    dataset_answer = prompt(dataset_question, style=style)
+
+    confirmation_question = [
+        {
+        'type': 'confirm',
+        'message': 'Should we go forward with these datasets?: {}'.format(str(dataset_answer['chosen'])[1:-1]),
+        'name': 'confirmation',
+        'default': True,
+        }
+        ]
+    confirmation_answer = prompt(confirmation_question, style=style)
+    
+    if confirmation_answer['confirmation'] == False:
+        print ('Ok, exiting...')
+        quit()
+
+    return (dataset_answer['chosen'])
+
 if __name__ == '__main__':
 
     DATABASE_NAME = 'congressData.sqlite'
@@ -146,33 +192,22 @@ if __name__ == '__main__':
 
     try:
 
-        decision = input(
-        """
-Which dataset do you want to download:
+        datasets = obtainDecision()
 
-    1. COVID19 Subsidies
-    2. Laws
-    3. House of Representatives Sessions (Diputados)
-    4. List of Representatives (Diputados)
-    5. Quit
-
-""")
-        if decision.lower() == '1':
-            SOURCE_NAME = 'Subsidies'
-            resourcePath = '/api/3/action/datastore_search?resource_id=2cdaef71-f802-4067-bfa0-810dd3a22583'
-        elif decision.lower() == '2':
-            SOURCE_NAME = 'Laws'
-            resourcePath = '/api/3/action/datastore_search?resource_id=a88b42c3-d375-4072-8542-92b11db1d711'
-        elif decision.lower() == '3':
-            SOURCE_NAME = 'Sessions'
-            resourcePath = '/api/3/action/datastore_search?resource_id=4ac70a51-a82d-428b-966a-0a203dd0a7e3'
-        elif decision.lower() == '4':
-            SOURCE_NAME = 'Representatives'
-            resourcePath = '/api/3/action/datastore_search?resource_id=16cd699d-83fb-4d5f-afd4-0af9b47b1bd7'
-        elif decision.lower() == '5' or decision.lower() == '':
-            quit()
-
-        runDataImporter(resourcePath)
+        for dataset in datasets:
+            if dataset == 'COVID19 Subsidies':
+                SOURCE_NAME = 'Subsidies'
+                resourcePath = '/api/3/action/datastore_search?resource_id=2cdaef71-f802-4067-bfa0-810dd3a22583'
+            elif dataset == 'Laws':
+                SOURCE_NAME = 'Laws'
+                resourcePath = '/api/3/action/datastore_search?resource_id=a88b42c3-d375-4072-8542-92b11db1d711'
+            elif dataset == 'House of Representatives Sessions (Diputados)':
+                SOURCE_NAME = 'Sessions'
+                resourcePath = '/api/3/action/datastore_search?resource_id=4ac70a51-a82d-428b-966a-0a203dd0a7e3'
+            elif dataset == 'List of Representatives (Diputados)':
+                SOURCE_NAME = 'Representatives'
+                resourcePath = '/api/3/action/datastore_search?resource_id=16cd699d-83fb-4d5f-afd4-0af9b47b1bd7'
+            runDataImporter(resourcePath)
 
     except KeyboardInterrupt:
         print ('\nUser quit with an interrupt')
