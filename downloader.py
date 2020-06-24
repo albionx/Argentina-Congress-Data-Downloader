@@ -25,45 +25,44 @@ try:
 except ImportError:
     print ('PyInquirer missing. To install, please run: pip install PyInquirer')
     quit()
+try:
+    from tqdm import tqdm
+except ImportError:
+    print ('TQDM missing. To install, please run: pip install TQDM')
+    quit()
 
-def runDataImporter(resourcePathCursor):
+def runDataImporter(SOURCE_NAME, resourcePathCursor):
 
     MoreData = True
     queryTally = int()
 
-    while MoreData:
-        # This path provides initial access, the API will give a cursor to the next results
-        resourceUrl = '{0}{1}'.format(BASE_URL, resourcePathCursor)
-        resourceData = getJsonContents(resourceUrl)
+    with tqdm(total=100, desc='Download dataset of {}: '.format(SOURCE_NAME), bar_format = '{desc}{bar}| {percentage:3.0f}% [Duration: {elapsed}]') as progressBar:
 
-        # Catch failures on their backend
-        if resourceData.get('success') != True: 
-            print ('Query didn\'t execute successfully:', resourceData['success'])
-            break
+        while MoreData:
+            # This path provides initial access, the API will give a cursor to the next results
+            resourceUrl = '{0}{1}'.format(BASE_URL, resourcePathCursor)
+            resourceData = getJsonContents(resourceUrl)
 
-        # Count total number of records in dataset and in this particular resultset
-        queryResults = len(resourceData['result']['records'])
-        queryTotal = resourceData['result']['total']
-        queryTally += queryResults
-        queryInsertions = writeToDB(resourceData)
+            # Catch failures on their backend
+            if resourceData.get('success') != True: 
+                print ('Query didn\'t execute successfully:', resourceData['success'])
+                break
 
-        # Establish progress in an unnecessarily visual way
-        print('Downloading {table} data: {progress}{remnant} {percentage}% ({tally}/{total}) \r'.format(
-            table=SOURCE_NAME,
-            progress="█" * round((queryTally / queryTotal) * 20),
-            remnant="░" * (20 - round((queryTally / queryTotal) * 20)),
-            percentage=round((queryTally / queryTotal) * 100),
-            tally=queryTally,
-            total=queryTotal
-            ), end="")
+            # Count total number of records in dataset and in this particular resultset
+            queryResults = len(resourceData['result']['records'])
+            queryTotal = resourceData['result']['total']
+            queryTally += queryResults
+            queryInsertions = writeToDB(resourceData)
 
-        # update the cursor
-        resourcePathCursor = resourceData['result']['_links']['next']
+            # Update progress bar
+            progressBar.update(round(queryResults/queryTotal*100,2))
 
-        # Exit if we've reached 100% already
-        if queryTally == queryTotal: 
-            print ("\nSUCCESS! Data saved in the '{0}' table, in the '{1}' file.".format(SOURCE_NAME, DATABASE_NAME))
-            MoreData = False
+            # update the cursor
+            resourcePathCursor = resourceData['result']['_links']['next']
+
+            # Exit if we've reached 100% already
+            if queryTally == queryTotal: 
+                MoreData = False
 
 def writeToDB(resourceData):
 
@@ -115,8 +114,6 @@ def getJsonContents(url):
         with requests.get(url) as urlHandler:
             if urlHandler.status_code == 200:
                 data = urlHandler.json()
-                print (data)
-                print (type(data))
             else:
                 print('Error retrieving contents from URL {0}'.format(url))
     except Exception as ex:
@@ -207,7 +204,7 @@ if __name__ == '__main__':
             elif dataset == 'List of Representatives (Diputados)':
                 SOURCE_NAME = 'Representatives'
                 resourcePath = '/api/3/action/datastore_search?resource_id=16cd699d-83fb-4d5f-afd4-0af9b47b1bd7'
-            runDataImporter(resourcePath)
+            runDataImporter(SOURCE_NAME, resourcePath)
 
     except KeyboardInterrupt:
         print ('\nUser quit with an interrupt')
