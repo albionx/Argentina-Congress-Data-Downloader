@@ -18,7 +18,7 @@ limitations under the License.
 
 import json
 import sqlite3
-import urllib.request
+import requests
 from time import sleep
 try:
     from PyInquirer import style_from_dict, Token, prompt
@@ -112,13 +112,13 @@ def getJsonContents(url):
     data = None
     try:
         sleep(DELAY_IN_SECONDS)
-        with urllib.request.urlopen(url) as urlHandler:
-            urlContents = urlHandler.read().decode()
-            response_code = urlHandler.getcode()
-        if response_code == 200:
-            data = json.loads(urlContents)
-        else:
-            print('Error retrieving contents from URL {0}'.format(url))
+        with requests.get(url) as urlHandler:
+            if urlHandler.status_code == 200:
+                data = urlHandler.json()
+                print (data)
+                print (type(data))
+            else:
+                print('Error retrieving contents from URL {0}'.format(url))
     except Exception as ex:
         print ('Problem obtaining or parsing the data from: {0} - Error {1}'.format(url, ex))
     return data
