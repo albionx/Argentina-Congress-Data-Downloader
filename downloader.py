@@ -22,12 +22,12 @@ import requests
 from time import sleep
 try:
     from PyInquirer import style_from_dict, Token, prompt
-except ImportError:
+except ModuleNotFoundError:
     print ('PyInquirer missing. To install, please run: pip install PyInquirer')
     quit()
 try:
     from tqdm import tqdm
-except ImportError:
+except ModuleNotFoundError:
     print ('TQDM missing. To install, please run: pip install TQDM')
     quit()
 
@@ -69,6 +69,9 @@ def writeToDB(resourceData):
     # Retrieve the schema and helper strings
     fullSchema = str() # needed because I'm building on schema
     fieldTypes = dict() # this dictionary stores each field and the type, which we'll use when doing the WHERE clause
+
+    # Ensure there is at least one field
+    assert len(resourceData['result']['fields']) > 43 
 
     for field in resourceData['result']['fields']:
         fullSchema = '{0}, {1} {2}'.format(fullSchema, field['id'], field['type'])
@@ -118,6 +121,11 @@ def getJsonContents(url):
                 print('Error retrieving contents from URL {0}'.format(url))
     except Exception as ex:
         print ('Problem obtaining or parsing the data from: {0} - Error {1}'.format(url, ex))
+    
+    # Testing that the data var is populated correctly as a Dictionary
+    assert data is not None
+    assert type(data) == dict
+    
     return data
 
 def buildQueryCondition(record, fieldTypes):
@@ -163,6 +171,7 @@ def obtainDecision():
             ]
         }
         ]
+
     dataset_answer = prompt(dataset_question, style=style)
 
     confirmation_question = [
