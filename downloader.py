@@ -16,19 +16,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json
 import sqlite3
 import requests
 from time import sleep
 try:
     from PyInquirer import style_from_dict, Token, prompt
 except ModuleNotFoundError:
-    print ('PyInquirer missing. To install, please run: pip install PyInquirer')
+    print('PyInquirer missing. To install, please run: pip install PyInquirer')
     quit()
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
-    print ('TQDM missing. To install, please run: pip install TQDM')
+    print('TQDM missing. To install, please run: pip install TQDM')
     quit()
 
 def runDataImporter(SOURCE_NAME, resourcePathCursor):
@@ -36,7 +35,7 @@ def runDataImporter(SOURCE_NAME, resourcePathCursor):
     MoreData = True
     queryTally = int()
 
-    with tqdm(total=100, desc='Download dataset of {}: '.format(SOURCE_NAME), bar_format = '{desc}{bar}| {percentage:3.0f}% [Duration: {elapsed}]') as progressBar:
+    with tqdm(total=100, desc='Download dataset of {}: '.format(SOURCE_NAME), bar_format='{desc}{bar}| {percentage:3.0f}% [Duration: {elapsed}]') as progressBar:
 
         while MoreData:
             # This path provides initial access, the API will give a cursor to the next results
@@ -44,34 +43,34 @@ def runDataImporter(SOURCE_NAME, resourcePathCursor):
             resourceData = getJsonContents(resourceUrl)
 
             # Catch failures on their backend
-            if resourceData.get('success') != True: 
-                print ('Query didn\'t execute successfully:', resourceData['success'])
+            if resourceData.get('success') is not True:
+                print('Query didn\'t execute successfully:', resourceData['success'])
                 break
 
             # Count total number of records in dataset and in this particular resultset
             queryResults = len(resourceData['result']['records'])
             queryTotal = resourceData['result']['total']
             queryTally += queryResults
-            queryInsertions = writeToDB(resourceData)
+            writeToDB(resourceData)
 
             # Update progress bar
-            progressBar.update(round(queryResults/queryTotal*100,2))
+            progressBar.update(round(queryResults / queryTotal * 100, 2))
 
             # update the cursor
             resourcePathCursor = resourceData['result']['_links']['next']
 
             # Exit if we've reached 100% already
-            if queryTally == queryTotal: 
+            if queryTally == queryTotal:
                 MoreData = False
 
 def writeToDB(resourceData):
 
     # Retrieve the schema and helper strings
-    fullSchema = str() # needed because I'm building on schema
-    fieldTypes = dict() # this dictionary stores each field and the type, which we'll use when doing the WHERE clause
+    fullSchema = str()  # needed because I'm building on schema
+    fieldTypes = dict()  # this dictionary stores each field and the type, which we'll use when doing the WHERE clause
 
     # Ensure there is at least one field
-    assert len(resourceData['result']['fields']) > 43 
+    assert len(resourceData['result']['fields']) > 0
 
     for field in resourceData['result']['fields']:
         fullSchema = '{0}, {1} {2}'.format(fullSchema, field['id'], field['type'])
@@ -79,13 +78,10 @@ def writeToDB(resourceData):
 
     fullSchema = fullSchema[1:]
 
-     # Create table with the fullSchema collected before
+    # Create table with the fullSchema collected before
     with sqlite3.connect(DATABASE_NAME) as database:
         cursor = database.cursor()
         cursor.execute('CREATE TABLE IF NOT EXISTS {0} ({1})'.format(SOURCE_NAME, fullSchema))
-
-        # Loop through records to insert into the database. Keep track of additions.
-        queryInsertions = int()
 
         for record in resourceData['result']['records']:
 
@@ -100,15 +96,15 @@ def writeToDB(resourceData):
             try:
                 cursor.execute(select_sql)
             except:
-                print ('Problem running query:', select_sql)
+                print('Problem running query:', select_sql)
 
             if cursor.fetchone() is None:
                 cursor.execute('INSERT INTO {0} ({1}) VALUES (?)'.format(SOURCE_NAME, fields), record.values())
-                queryInsertions += 1
 
         database.commit()
 
-    return queryInsertions
+    return
+
 
 def getJsonContents(url):
     data = None
@@ -120,32 +116,33 @@ def getJsonContents(url):
             else:
                 print('Error retrieving contents from URL {0}'.format(url))
     except Exception as ex:
-        print ('Problem obtaining or parsing the data from: {0} - Error {1}'.format(url, ex))
-    
+        print('Problem obtaining or parsing the data from: {0} - Error {1}'.format(url, ex))
+
     # Testing that the data var is populated correctly as a Dictionary
     assert data is not None
     assert type(data) == dict
-    
+
     return data
+
 
 def buildQueryCondition(record, fieldTypes):
     conditions = str()
     try:
         for fieldName in record.keys():
             # Deal with None values by using "". In text fields this becomes a "" field. In numeric fields it becomes NULL.
-            if record[fieldName] == None: 
+            if record[fieldName] is None:
                 conditions = '{0} AND {1} = ""'.format(conditions, fieldName)
                 continue
             # Deal with formatting and SQL injection protection.
             if fieldTypes[fieldName].lower() == 'text' or fieldTypes[fieldName].lower() == 'timestamp':
-                conditions = '{0} AND {1} = "{2}"'.format(conditions, fieldName, record[fieldName].replace('\"','\''))
+                conditions = '{0} AND {1} = "{2}"'.format(conditions, fieldName, record[fieldName].replace('\"', '\''))
             else:
-                conditions = '{0} AND {1} = {2}'.format(conditions, fieldName, str(record[fieldName]).replace(' ',''))
+                conditions = '{0} AND {1} = {2}'.format(conditions, fieldName, str(record[fieldName]).replace(' ', ''))
         return conditions[5:]
     except:
-        print (record)
-        print ((str(list(record.keys()))[1:-1]))
-        print ((str(list(record.values()))[1:-1]))
+        print(record)
+        print((str(list(record.keys()))[1:-1]))
+        print((str(list(record.values()))[1:-1]))
         quit()
 
 def obtainDecision():
@@ -160,41 +157,42 @@ def obtainDecision():
 
     dataset_question = [
         {
-        'type': 'checkbox', 
-        'name': 'chosen',
-        'message': 'Select all datasets you want to download:',
-        'choices': [
-            {'name': 'COVID19 Subsidies'},
-            {'name': 'Laws'},
-            {'name': 'House of Representatives Sessions (Diputados)'},
-            {'name': 'List of Representatives (Diputados)'}
+            'type': 'checkbox',
+            'name': 'chosen',
+            'message': 'Select all datasets you want to download:',
+            'choices': [
+                {'name': 'COVID19 Subsidies'},
+                {'name': 'Laws'},
+                {'name': 'House of Representatives Sessions (Diputados)'},
+                {'name': 'List of Representatives (Diputados)'}
             ]
         }
-        ]
+    ]
 
     dataset_answer = prompt(dataset_question, style=style)
 
     confirmation_question = [
         {
-        'type': 'confirm',
-        'message': 'Should we go forward with these datasets?: {}'.format(str(dataset_answer['chosen'])[1:-1]),
-        'name': 'confirmation',
-        'default': True,
+            'type': 'confirm',
+            'message': 'Should we go forward with these datasets?: {}'.format(str(dataset_answer['chosen'])[1:-1]),
+            'name': 'confirmation',
+            'default': True,
         }
-        ]
+    ]
     confirmation_answer = prompt(confirmation_question, style=style)
-    
-    if confirmation_answer['confirmation'] == False:
-        print ('Ok, exiting...')
+
+    if confirmation_answer['confirmation'] is False:
+        print('Ok, exiting...')
         quit()
 
     return (dataset_answer['chosen'])
+
 
 if __name__ == '__main__':
 
     DATABASE_NAME = 'congressData.sqlite'
     BASE_URL = 'https://datos.hcdn.gob.ar:443'
-    DELAY_IN_SECONDS = 0 
+    DELAY_IN_SECONDS = 0
 
     try:
 
@@ -216,4 +214,4 @@ if __name__ == '__main__':
             runDataImporter(SOURCE_NAME, resourcePath)
 
     except KeyboardInterrupt:
-        print ('\nUser quit with an interrupt')
+        print('\nUser quit with an interrupt')
